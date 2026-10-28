@@ -1,0 +1,8 @@
+package com.axity.course.retailorderservice.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.axity.course.retailorderservice.model.Product;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+}
