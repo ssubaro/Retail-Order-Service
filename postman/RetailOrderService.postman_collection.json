@@ -1,0 +1,816 @@
+{
+  "info": {
+    "name": "RetailOrder Service",
+    "description": "Colección de pruebas integradas para el microservicio RetailOrder Service (catálogo, inventario y pedidos). Diseñada para ejecutarse completa, de principio a fin, desde Collection Runner o Newman contra una instancia local (perfil H2 en memoria). El orden de las carpetas y solicitudes es intencional: cada bloque construye el estado (productos, pedidos) que usan las pruebas siguientes, documentado aquí en vez de dejarlo implícito.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "productIdA", "value": "" },
+    { "key": "productIdB", "value": "" },
+    { "key": "skuA", "value": "" },
+    { "key": "skuB", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "customerId", "value": "" },
+    { "key": "runId", "value": "" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('runId')) {",
+          "    pm.collectionVariables.set('runId', Date.now().toString());",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Productos",
+      "item": [
+        {
+          "name": "Crear producto A (stock bajo, dispara alerta)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('tiene id y sku', () => { pm.expect(body.id).to.be.a('number'); pm.expect(body.sku).to.be.a('string'); });",
+                  "pm.test('stock y active correctos', () => { pm.expect(body.stock).to.eql(7); pm.expect(body.active).to.eql(true); });",
+                  "pm.collectionVariables.set('productIdA', body.id);",
+                  "pm.collectionVariables.set('skuA', body.sku);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001-{{runId}}\",\n  \"name\": \"Teclado Mecanico\",\n  \"description\": \"Teclado RGB\",\n  \"price\": 799.90,\n  \"stock\": 7,\n  \"category\": \"Electronica\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear producto B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('stock inicial 20', () => pm.expect(body.stock).to.eql(20));",
+                  "pm.collectionVariables.set('productIdB', body.id);",
+                  "pm.collectionVariables.set('skuB', body.sku);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-002-{{runId}}\",\n  \"name\": \"Mouse Inalambrico\",\n  \"description\": \"Mouse ergonomico\",\n  \"price\": 299.50,\n  \"stock\": 20,\n  \"category\": \"Electronica\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear producto - SKU duplicado (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test('cuerpo de error estandar', () => { pm.expect(body.status).to.eql(409); pm.expect(body).to.have.property('message'); pm.expect(body).to.have.property('timestamp'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001-{{runId}}\",\n  \"name\": \"Duplicado\",\n  \"price\": 10.00,\n  \"stock\": 1,\n  \"category\": \"x\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear producto - precio invalido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('menciona el campo price', () => pm.expect(body.message).to.include('price'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-003-{{runId}}\",\n  \"name\": \"Precio malo\",\n  \"price\": 0,\n  \"stock\": 1,\n  \"category\": \"x\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar producto A por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('id coincide', () => pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('productIdA'))));",
+                  "pm.test('sku coincide', () => pm.expect(body.sku).to.eql(pm.collectionVariables.get('skuA')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdA}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdA}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar producto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found', () => pm.response.to.have.status(404));",
+                  "const body = pm.response.json();",
+                  "pm.test('mensaje de no encontrado', () => pm.expect(body.message).to.include('999999'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/999999", "host": ["{{baseUrl}}"], "path": ["api", "products", "999999"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar productos con filtros (categoria y precio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('respuesta es un arreglo', () => pm.expect(body).to.be.an('array'));",
+                  "pm.test('incluye el producto A', () => { const ids = body.map(p => p.id); pm.expect(ids).to.include(Number(pm.collectionVariables.get('productIdA'))); });",
+                  "pm.test('todos activos y dentro del rango de precio', () => { body.forEach(p => { pm.expect(p.active).to.eql(true); pm.expect(p.price).to.be.at.least(500); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/products?category=Electronica&minPrice=500",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "products"],
+              "query": [
+                { "key": "category", "value": "Electronica" },
+                { "key": "minPrice", "value": "500" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar producto A (reabastecer stock)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('stock actualizado a 50', () => pm.expect(body.stock).to.eql(50));",
+                  "pm.test('precio actualizado', () => pm.expect(body.price).to.eql(849.90));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"{{skuA}}\",\n  \"name\": \"Teclado Mecanico\",\n  \"description\": \"Teclado RGB - reabastecido\",\n  \"price\": 849.90,\n  \"stock\": 50,\n  \"category\": \"Electronica\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdA}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdA}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Actualizar producto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [ "pm.test('404 Not Found', () => pm.response.to.have.status(404));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-NOPE-{{runId}}\",\n  \"name\": \"No existe\",\n  \"price\": 10,\n  \"stock\": 1,\n  \"category\": \"x\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products/999999", "host": ["{{baseUrl}}"], "path": ["api", "products", "999999"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Baja logica de producto B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [ "pm.test('204 No Content', () => pm.response.to.have.status(204));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdB}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdB}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar producto B tras baja (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found (desactivado = no visible en catalogo)', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdB}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdB}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Baja logica duplicada de producto B (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 Not Found (ya estaba dado de baja)', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdB}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdB}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivar producto B",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('vuelve a estar activo', () => pm.expect(body.active).to.eql(true));",
+                  "pm.test('conserva sus datos (sku, stock)', () => { pm.expect(body.sku).to.eql(pm.collectionVariables.get('skuB')); pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('productIdB'))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdB}}/reactivate", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdB}}", "reactivate"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar producto B tras reactivar (visible de nuevo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('activo y con el mismo id', () => { pm.expect(body.active).to.eql(true); pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('productIdB'))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdB}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdB}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivar producto B nuevamente - ya estaba activo (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test('indica que ya estaba activo', () => pm.expect(body.message.toLowerCase()).to.include('activo'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdB}}/reactivate", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdB}}", "reactivate"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivar producto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [ "pm.test('404 Not Found', () => pm.response.to.have.status(404));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/999999/reactivate", "host": ["{{baseUrl}}"], "path": ["api", "products", "999999", "reactivate"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 - Pedidos",
+      "item": [
+        {
+          "name": "Crear pedido (exito, consume stock de A)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('customerId', 'CLI-' + pm.collectionVariables.get('runId'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('estado inicial PENDIENTE', () => pm.expect(body.status).to.eql('PENDIENTE'));",
+                  "pm.test('total es la suma de los line totals', () => { const sum = body.items.reduce((acc, it) => acc + it.lineTotal, 0); pm.expect(Math.round(sum * 100)).to.eql(Math.round(body.total * 100)); });",
+                  "pm.collectionVariables.set('orderId', body.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"items\": [\n    { \"productId\": {{productIdA}}, \"quantity\": 5 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api", "orders"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Verificar que el stock de A disminuyo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('stock descontado (50 - 5 = 45)', () => pm.expect(body.stock).to.eql(45));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdA}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdA}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear pedido - stock insuficiente (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test('menciona stock insuficiente', () => pm.expect(body.message.toLowerCase()).to.include('stock'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"items\": [\n    { \"productId\": {{productIdA}}, \"quantity\": 999999 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api", "orders"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Crear pedido - producto inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [ "pm.test('404 Not Found', () => pm.response.to.have.status(404));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"items\": [\n    { \"productId\": 999999, \"quantity\": 1 }\n  ]\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api", "orders"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar pedido por ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('id coincide', () => pm.expect(body.id).to.eql(Number(pm.collectionVariables.get('orderId'))));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}", "host": ["{{baseUrl}}"], "path": ["api", "orders", "{{orderId}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Consultar pedido inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [ "pm.test('404 Not Found', () => pm.response.to.have.status(404));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/orders/999999", "host": ["{{baseUrl}}"], "path": ["api", "orders", "999999"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Listar pedidos filtrando por cliente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('incluye el pedido creado', () => { const ids = body.map(o => o.id); pm.expect(ids).to.include(Number(pm.collectionVariables.get('orderId'))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders?customerId={{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders"],
+              "query": [ { "key": "customerId", "value": "{{customerId}}" } ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Transicion de estado invalida PENDIENTE a ENVIADO (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test('menciona transicion no permitida', () => pm.expect(body.message.toLowerCase()).to.include('transici'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"ENVIADO\" }" },
+            "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "orders", "{{orderId}}", "status"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Transicion de estado valida PENDIENTE a EN_PROCESO",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('estado actualizado', () => pm.expect(body.status).to.eql('EN_PROCESO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"status\": \"EN_PROCESO\" }" },
+            "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "orders", "{{orderId}}", "status"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancelar pedido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('estado CANCELADO', () => pm.expect(body.status).to.eql('CANCELADO'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}/cancel", "host": ["{{baseUrl}}"], "path": ["api", "orders", "{{orderId}}", "cancel"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Verificar reversion de stock tras cancelar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('stock restaurado a 50', () => pm.expect(body.stock).to.eql(50));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/products/{{productIdA}}", "host": ["{{baseUrl}}"], "path": ["api", "products", "{{productIdA}}"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancelar pedido nuevamente - previene reversion duplicada (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 Conflict', () => pm.response.to.have.status(409));",
+                  "const body = pm.response.json();",
+                  "pm.test('indica que ya estaba cancelado', () => pm.expect(body.message.toLowerCase()).to.include('cancelado'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}/cancel", "host": ["{{baseUrl}}"], "path": ["api", "orders", "{{orderId}}", "cancel"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 - Auditoria (verifica efectos asincronos)",
+      "item": [
+        {
+          "name": "Auditoria del producto A (stock y alertas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('hay al menos un registro de auditoria', () => pm.expect(body.length).to.be.above(0));",
+                  "pm.test('existe un registro STOCK_CHANGED', () => { const actions = body.map(l => l.action); pm.expect(actions).to.include('STOCK_CHANGED'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audit-logs?entityType=PRODUCT&entityId={{productIdA}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audit-logs"],
+              "query": [
+                { "key": "entityType", "value": "PRODUCT" },
+                { "key": "entityId", "value": "{{productIdA}}" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Auditoria del pedido (notificacion simulada registrada)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('incluye CREATED y CANCELLED', () => { const actions = body.map(l => l.action); pm.expect(actions).to.include('CREATED'); pm.expect(actions).to.include('CANCELLED'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audit-logs?entityType=ORDER&entityId={{orderId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audit-logs"],
+              "query": [
+                { "key": "entityType", "value": "ORDER" },
+                { "key": "entityId", "value": "{{orderId}}" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 - Documentacion OpenAPI",
+      "item": [
+        {
+          "name": "api-docs disponible",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('es un documento OpenAPI', () => pm.expect(body.openapi).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/v3/api-docs", "host": ["{{baseUrl}}"], "path": ["v3", "api-docs"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Swagger UI disponible",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [ "pm.test('200 OK', () => pm.response.to.have.status(200));" ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/swagger-ui/index.html", "host": ["{{baseUrl}}"], "path": ["swagger-ui", "index.html"] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
