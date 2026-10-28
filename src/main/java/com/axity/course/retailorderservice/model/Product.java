@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "products")
@@ -17,6 +18,9 @@ public class Product {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(nullable = false, unique = true, length = 40)
+    private String sku;
 
     @Column(nullable = false, length = 100)
     private String name;
@@ -33,10 +37,17 @@ public class Product {
     @Column(length = 50)
     private String category;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
+    @Version
+    private Long version;
+
     public Product() {
     }
 
-    public Product(String name, String description, BigDecimal price, Integer stock, String category) {
+    public Product(String sku, String name, String description, BigDecimal price, Integer stock, String category) {
+        this.sku = sku;
         this.name = name;
         this.description = description;
         this.price = price;
@@ -50,6 +61,14 @@ public class Product {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getSku() {
+        return sku;
+    }
+
+    public void setSku(String sku) {
+        this.sku = sku;
     }
 
     public String getName() {
@@ -90,6 +109,18 @@ public class Product {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 
     @Override

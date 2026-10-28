@@ -9,6 +9,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public record ProductRequestDto(
+        @NotBlank @Size(max = 40) String sku,
         @NotBlank @Size(max = 100) String name,
         @Size(max = 255) String description,
         @NotNull @DecimalMin(value = "0.0", inclusive = false) BigDecimal price,

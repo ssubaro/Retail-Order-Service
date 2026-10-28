@@ -1,5 +1,6 @@
 package com.axity.course.retailorderservice.controller;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.util.List;
 
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -31,8 +33,11 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponseDto> findAll() {
-        return productService.findAll();
+    public List<ProductResponseDto> findAll(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
+        return productService.findAll(category, minPrice, maxPrice);
     }
 
     @GetMapping("/{id}")
@@ -61,5 +66,10 @@ public class ProductController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         productService.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/reactivate")
+    public ProductResponseDto reactivate(@PathVariable Long id) {
+        return productService.reactivate(id);
     }
 }
