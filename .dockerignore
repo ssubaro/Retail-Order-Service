@@ -1,0 +1,15 @@
+# Lo que NO se envía al daemon de Docker como contexto de build (más rápido y sin basura en la imagen)
+target/
+.mvn/
+mvnw
+mvnw.cmd
+.idea/
+.vscode/
+*.iml
+.git/
+docs/
+postman/
+k8s/
+*.md
+Dockerfile
+.dockerignore

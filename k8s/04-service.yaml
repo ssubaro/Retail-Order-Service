@@ -1,0 +1,15 @@
+# Service tipo LoadBalancer: un punto de entrada estable que reparte el tráfico entre
+# los 3 Pods con label app=retail-order-service (los del 02). Los Pods cambian de IP
+# al recrearse; el Service no. En Docker Desktop la EXTERNAL-IP es localhost.
+apiVersion: v1
+kind: Service
+metadata:
+  name: retail-order-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: retail-order-service
+  ports:
+  - protocol: TCP
+    port: 8080          # puerto expuesto en localhost
+    targetPort: 8080    # puerto del contenedor

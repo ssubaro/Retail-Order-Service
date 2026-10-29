@@ -1,0 +1,79 @@
+# Deployment con 3 réplicas del microservicio.
+# Cada Pod tiene su PROPIA base H2 en memoria: un producto creado a través del Service
+# solo existe en el Pod que atendió la petición, y se pierde si ese Pod muere.
+# Esto muestra por qué un servicio con varias réplicas debe ser stateless (o usar una BD compartida).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retail-order-deployment
+  labels:
+    app: retail-order-service
+spec:
+  replicas: 3
+  revisionHistoryLimit: 5          # cuántas revisiones guarda para kubectl rollout undo
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0            # nunca baja de 3 Pods listos durante una actualización
+      maxSurge: 1                  # crea 1 Pod nuevo a la vez antes de matar uno viejo
+  selector:
+    matchLabels:
+      app: retail-order-service
+  template:
+    metadata:
+      labels:
+        app: retail-order-service
+    spec:
+      containers:
+      - name: retail-order-app
+        image: retail-order-service:v1
+        imagePullPolicy: IfNotPresent   # usa la imagen local de Docker Desktop (sin push)
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: retail-order-config
+        - secretRef:
+            name: retail-order-secret
+        # Downward API: Kubernetes inyecta datos del propio Pod como variables de entorno.
+        # Spring los publica en /actuator/info -> {"pod":{"name":"...","ip":"..."}}, así se ve
+        # qué réplica atendió cada petición que pasa por el LoadBalancer.
+        env:
+        - name: INFO_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: INFO_POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          requests:                     # lo que el scheduler reserva en el nodo
+            memory: "384Mi"
+            cpu: "250m"
+          limits:                       # tope: si pasa la memoria, el contenedor muere (OOMKilled)
+            memory: "768Mi"
+            cpu: "1"
+        # startupProbe: Spring Boot tarda en arrancar. Mientras esta probe no pase,
+        # las otras dos no se evalúan (evita reinicios en bucle por arranque lento).
+        # Hasta 30 intentos x 5s = 150s de margen.
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          periodSeconds: 5
+          failureThreshold: 30
+        # livenessProbe: si falla 3 veces seguidas, Kubernetes REINICIA el contenedor.
+        livenessProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          periodSeconds: 15
+          failureThreshold: 3
+        # readinessProbe: si falla, el Pod sale del Service (no recibe tráfico) pero no se reinicia.
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          periodSeconds: 10
+          failureThreshold: 3

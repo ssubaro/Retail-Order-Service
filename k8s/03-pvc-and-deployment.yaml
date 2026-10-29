@@ -1,0 +1,76 @@
+# PersistentVolumeClaim: "pido 1Gi de disco". En Docker Desktop lo satisface el
+# StorageClass por defecto (hostpath), que crea el PersistentVolume automáticamente.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: retail-order-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce              # lo monta un solo nodo a la vez
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Deployment con 1 réplica que guarda la base H2 en ARCHIVO dentro del volumen,
+# en vez de en memoria: los productos y pedidos sobreviven aunque el Pod se borre.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retail-order-pvc-deployment
+  labels:
+    app: retail-order-service-pvc
+spec:
+  replicas: 1
+  # Recreate: mata el Pod viejo ANTES de crear el nuevo. H2 bloquea el archivo de la BD,
+  # así que con RollingUpdate el Pod nuevo no podría abrirla mientras el viejo siga vivo.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: retail-order-service-pvc
+  template:
+    metadata:
+      labels:
+        app: retail-order-service-pvc
+    spec:
+      containers:
+      - name: retail-order-app
+        image: retail-order-service:v1
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: retail-order-config
+        - secretRef:
+            name: retail-order-secret
+        env:
+        # Sobrescribe spring.datasource.url: H2 en archivo dentro del volumen montado.
+        # (env tiene prioridad sobre envFrom si una variable se repite)
+        - name: SPRING_DATASOURCE_URL
+          value: "jdbc:h2:file:/app/data/retaildb"
+        resources:
+          requests:
+            memory: "384Mi"
+            cpu: "250m"
+          limits:
+            memory: "768Mi"
+            cpu: "1"
+        startupProbe:
+          httpGet:
+            path: /actuator/health/liveness
+            port: 8080
+          periodSeconds: 5
+          failureThreshold: 30
+        readinessProbe:
+          httpGet:
+            path: /actuator/health/readiness
+            port: 8080
+          periodSeconds: 10
+        volumeMounts:
+        - name: datos-almacenamiento
+          mountPath: /app/data
+      volumes:
+      - name: datos-almacenamiento
+        persistentVolumeClaim:
+          claimName: retail-order-pvc
