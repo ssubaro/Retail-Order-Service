@@ -95,8 +95,10 @@ tener dos clases que a veces se parecen tanto (`Product` y `ProductResponseDto`)
    `OrderItemResponseDto`) define exactamente qué campos planos quieres mostrar.
 3. **Validación de entrada centralizada y explícita.** Los DTOs de request (`ProductRequestDto`,
    `OrderRequestDto`, `OrderItemRequestDto`) llevan las anotaciones de Bean Validation
-   (`@NotBlank`, `@Positive`, `@DecimalMin`, etc.). Son el único lugar donde se valida "la forma"
-   de lo que entra, antes de que le llegue algo inválido al service.
+   (`@NotBlank`, `@Positive`, `@DecimalMin`, `@Max`, etc.) — por ejemplo, `ProductRequestDto.stock`
+   tiene `@Max(10_000)`, así que crear un producto con más stock del permitido falla con 400 antes
+   de que el service llegue siquiera a ejecutarse. Son el único lugar donde se valida "la forma" de
+   lo que entra.
 
 Casi todos son `record` de Java — son inmutables y no necesitan getters/setters escritos a mano,
 perfecto para algo que solo transporta datos y no tiene comportamiento.
@@ -191,6 +193,15 @@ Cómo funciona en este proyecto:
 No usamos un *message broker* externo (Kafka, RabbitMQ, etc.) porque para el alcance de este
 proyecto sería infraestructura de más: el pool de hilos de Spring (`@Async`) ya resuelve el
 requisito de "no bloquear al usuario" sin montar un sistema aparte.
+
+**Para verlo en vivo:** en una base H2 local todo esto corre tan rápido (unos pocos milisegundos)
+que a simple vista parece síncrono, aunque técnicamente no lo sea. `application.properties` define
+`app.async.demo-delay-ms=1500`, un retraso artificial sin ningún propósito funcional — solo hace
+que el log de consola (marcado con `[ASYNC]` y el nombre del hilo, p. ej. `retail-async-1`)
+aparezca notoriamente *después* de que ya respondiste la petición, para que se note en una
+demostración. Para pruebas automatizadas (ver `postman/README.md`) se desactiva con
+`--app.async.demo-delay-ms=0`, porque si no, algunas aserciones que consultan `/api/audit-logs`
+muy pronto después pueden fallar de forma intermitente.
 
 ### `config/` — ajustes transversales de Spring
 

@@ -4,6 +4,8 @@
 -- Al detener la aplicación esta base desaparece (jdbc:h2:mem:...), así que estos datos nunca persisten
 -- entre ejecuciones: solo sirven para tener algo con qué probar Swagger UI / H2 console / Postman sin
 -- tener que dar de alta productos a mano cada vez.
+
+
 /* 
 INSERT INTO products (sku, name, description, price, stock, category, active, version) VALUES
     ('SKU-DEMO-001', 'Teclado Mecanico RGB', 'Switches rojos, retroiluminado', 899.00, 15, 'Electronica', true, 0),

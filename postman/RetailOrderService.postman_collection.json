@@ -140,6 +140,32 @@
           "response": []
         },
         {
+          "name": "Crear producto - stock supera el maximo permitido (400)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 Bad Request', () => pm.response.to.have.status(400));",
+                  "const body = pm.response.json();",
+                  "pm.test('menciona el campo stock', () => pm.expect(body.message).to.include('stock'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-004-{{runId}}\",\n  \"name\": \"Stock excesivo\",\n  \"price\": 10,\n  \"stock\": 10001,\n  \"category\": \"x\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/products", "host": ["{{baseUrl}}"], "path": ["api", "products"] }
+          },
+          "response": []
+        },
+        {
           "name": "Consultar producto A por ID",
           "event": [
             {
