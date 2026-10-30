@@ -30,4 +30,8 @@ EXPOSE 8080
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75"
 ENV APP_ENVIRONMENT=desarrollo
 
+# Versión visible en GET / . Se fija al construir: docker build --build-arg APP_VERSION=v3 -t retail-order-service:v3 .
+ARG APP_VERSION=v1
+ENV APP_VERSION=${APP_VERSION}
+
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
