@@ -17,7 +17,8 @@ problemas más adelante.
 ./mvnw spring-boot:run
 ```
 
-- API disponible en `http://localhost:8080`
+- API disponible en `http://localhost:8080` (`GET /` responde un JSON de bienvenida con la versión,
+  el entorno, el pod que atendió y los enlaces principales)
 - Swagger UI (explorar/probar endpoints a mano): `http://localhost:8080/swagger-ui/index.html`
 - Consola de la base de datos H2: `http://localhost:8080/h2-console` (JDBC URL: `jdbc:h2:mem:retaildb`, usuario `sa`, sin contraseña)
 - Colección de pruebas Postman: carpeta [`postman/`](postman/README.md)
@@ -141,7 +142,8 @@ sin pasar por una petición HTTP.
 
 ### `controller/` — la puerta de entrada HTTP
 
-Son las clases `@RestController` (`ProductController`, `OrderController`, `AuditLogController`).
+Son las clases `@RestController` (`ProductController`, `OrderController`, `AuditLogController`,
+y `HomeController` para la página de bienvenida en `GET /`).
 Su trabajo es mínimo y mecánico a propósito:
 
 1. Recibir la petición HTTP (path variables, query params, body).
@@ -238,7 +240,10 @@ tablas mientras la app está corriendo — útil para depurar sin tener que escr
 solo para mirar un dato.
 
 **Importante:** H2 en memoria es para desarrollo y pruebas, no para producción — ahí normalmente se
-usaría PostgreSQL, MySQL u otro motor que persista datos en disco de verdad.
+usaría PostgreSQL, MySQL u otro motor que persista datos en disco de verdad. Eso es justo lo que pasa
+en el despliegue de Kubernetes (sección 7): la misma imagen se conecta a **PostgreSQL** solo
+cambiando variables de entorno. Por eso `application.properties` no fija ni el driver ni el dialecto
+de Hibernate: Spring los deduce de la URL (`jdbc:h2:...` o `jdbc:postgresql:...`).
 
 ---
 
@@ -309,3 +314,42 @@ sequenceDiagram
 
 El cliente nunca espera por el bloque de abajo (auditoría, alertas, notificación) — eso es
 exactamente lo que pide la parte de "procesamiento asíncrono" del proyecto integrador.
+
+---
+
+## 7. Docker y Kubernetes (Docker Desktop) con PostgreSQL
+
+El servicio también se despliega en el Kubernetes de Docker Desktop. La guía paso a paso, con todos
+los comandos y lo que se espera ver, está en [`k8s/README.md`](k8s/README.md). En resumen:
+
+```
+                 localhost:8080
+                       │
+          Service LoadBalancer (04)
+           ┌───────────┼───────────┐
+        pod app     pod app     pod app      3 réplicas stateless (02)
+           └───────────┼───────────┘
+                       │  jdbc:postgresql://postgres:5432/retaildb
+             Service ClusterIP "postgres" (03)
+                       │
+                  pod postgres ── PVC postgres-pvc (1Gi)
+```
+
+- **`Dockerfile`** multi-etapa: Maven compila el jar y la imagen final solo lleva el JRE 21.
+  `--build-arg APP_VERSION=vN` fija la versión que muestra `GET /`.
+- **`01-config-and-secret.yaml`**: el ConfigMap apunta la app a PostgreSQL
+  (`SPRING_DATASOURCE_URL`) y el Secret guarda usuario y contraseña de la base. Spring Boot convierte
+  cada variable de entorno en su propiedad (*relaxed binding*), así que no hay que reconstruir la
+  imagen para cambiar la configuración.
+- **`02-deployment.yaml`**: 3 réplicas con probes de Actuator (`/actuator/health/liveness` y
+  `/readiness`), rolling update sin caída y un *initContainer* que espera a que Postgres acepte
+  conexiones.
+- **`03-postgres.yaml`**: PostgreSQL 16 con su **PVC** (los datos sobreviven al borrar el pod) y un
+  `init.sql` que crea las tablas y precarga 8 productos y 4 pedidos la primera vez. La app arranca
+  con `ddl-auto=validate`: Hibernate no crea tablas, solo verifica que coincidan con las entidades.
+- **`04-service.yaml`**: LoadBalancer en `localhost:8080` que reparte las peticiones entre las 3
+  réplicas; como todas usan la misma base, todas ven los mismos datos.
+
+**Lección aprendida:** usa una etiqueta de imagen nueva por cada cambio de código
+(`retail-order-service:v5`, `v6`...). Con `imagePullPolicy: IfNotPresent`, si reutilizas una
+etiqueta, el nodo sigue usando la imagen vieja que tiene en caché.

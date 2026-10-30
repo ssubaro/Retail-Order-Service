@@ -1,7 +1,7 @@
 # Deployment con 3 réplicas del microservicio.
-# Cada Pod tiene su PROPIA base H2 en memoria: un producto creado a través del Service
-# solo existe en el Pod que atendió la petición, y se pierde si ese Pod muere.
-# Esto muestra por qué un servicio con varias réplicas debe ser stateless (o usar una BD compartida).
+# Las réplicas son stateless: no guardan datos propios, todas se conectan a la misma base
+# PostgreSQL (03) por la red. Un producto creado a través del Service lo ven los 3 pods,
+# y sobrevive aunque se borren todos.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -24,9 +24,16 @@ spec:
       labels:
         app: retail-order-service
     spec:
+      # initContainer: corre ANTES que la app y debe terminar con éxito para que esta arranque.
+      # Espera a que el Service "postgres" (03) acepte conexiones; mientras tanto el pod
+      # se ve como Init:0/1 en lugar de fallar y reiniciarse en bucle.
+      initContainers:
+      - name: esperar-postgres
+        image: busybox:1.36
+        command: ["sh", "-c", "until nc -z postgres 5432; do echo 'esperando a postgres...'; sleep 2; done"]
       containers:
       - name: retail-order-app
-        image: retail-order-service:v1
+        image: retail-order-service:v5
         imagePullPolicy: IfNotPresent   # usa la imagen local de Docker Desktop (sin push)
         ports:
         - containerPort: 8080
